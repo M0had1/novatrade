@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NovaTrade — Trading Dashboard</title>
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg"/>
+  <link rel="stylesheet" href="css/main.css"/>
+  <link rel="stylesheet" href="css/dashboard.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body class="dashboard-body">
+
+<!-- AUTH GATE -->
+<div class="auth-gate" id="authGate">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <svg width="44" height="44" viewBox="0 0 32 32" fill="none">
+        <defs>
+          <linearGradient id="aLogoGrad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#6C63FF"/>
+            <stop offset="100%" stop-color="#00C9A7"/>
+          </linearGradient>
+        </defs>
+        <path d="M4 28 L16 4 L28 28 L22 28 L16 16 L10 28 Z" fill="url(#aLogoGrad)"/>
+        <circle cx="16" cy="12" r="3" fill="#00C9A7" opacity="0.85"/>
+      </svg>
+      <span class="logo-text">Nova<span class="logo-accent">Trade</span></span>
+    </div>
+    <h2>Connect Your Account</h2>
+    <p class="auth-sub">Enter your Deriv API token to access real-time trading. Your token is stored only in this browser session.</p>
+
+    <div class="auth-steps">
+      <div class="step">
+        <span class="step-num">1</span>
+        <span>Log in at <a href="https://deriv.com" target="_blank" rel="noopener">deriv.com</a> → Account Settings → API Token</span>
+      </div>
+      <div class="step">
+        <span class="step-num">2</span>
+        <span>Create a token with <strong>Read</strong> + <strong>Trade</strong> permissions</span>
+      </div>
+      <div class="step">
+        <span class="step-num">3</span>
+        <span>Paste your token below and click Connect</span>
+      </div>
+    </div>
+
+    <div class="auth-form">
+      <div class="input-group">
+        <label for="apiTokenInput">Deriv API Token</label>
+        <div class="input-wrap">
+          <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+          <input type="password" id="apiTokenInput" placeholder="e.g. a1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off"/>
+          <button class="toggle-vis" id="toggleVis" aria-label="Toggle visibility" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="auth-error" id="authError"></div>
+      <button class="btn btn-primary btn-full" id="connectBtn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13 12H3"/></svg>
+        Connect &amp; Enter Platform
+      </button>
+      <button class="btn btn-ghost btn-full" id="demoBtn">
+        Use Demo Account
+      </button>
+    </div>
+    <p class="auth-note">🔒 Your token is never stored on our servers. It lives only in your browser's session memory.</p>
+  </div>
+</div>
+
+<!-- MAIN DASHBOARD -->
+<div class="dash-layout" id="dashLayout" style="display:none">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
+        <defs>
+          <linearGradient id="sLogoGrad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#6C63FF"/>
+            <stop offset="100%" stop-color="#00C9A7"/>
+          </linearGradient>
+        </defs>
+        <path d="M4 28 L16 4 L28 28 L22 28 L16 16 L10 28 Z" fill="url(#sLogoGrad)"/>
+        <circle cx="16" cy="12" r="3" fill="#00C9A7" opacity="0.85"/>
+      </svg>
+      <span class="logo-text">Nova<span class="logo-accent">Trade</span></span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="#" class="sidebar-link active" data-tab="trade">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        <span>Trade</span>
+      </a>
+      <a href="#" class="sidebar-link" data-tab="portfolio">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <span>Portfolio</span>
+      </a>
+      <a href="#" class="sidebar-link" data-tab="history">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>History</span>
+      </a>
+      <a href="#" class="sidebar-link" data-tab="markets">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        <span>Markets</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="account-info" id="accountInfo">
+        <div class="account-avatar" id="accountAvatar">?</div>
+        <div class="account-details">
+          <div class="account-name" id="accountName">Loading…</div>
+          <div class="account-type" id="accountType">—</div>
+        </div>
+      </div>
+      <button class="sidebar-link logout-btn" id="logoutBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        <span>Disconnect</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="dash-main">
+    <!-- TOP BAR -->
+    <header class="dash-header">
+      <div class="dash-header-left">
+        <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="ws-status" id="wsStatus">
+          <span class="ws-dot connecting"></span>
+          <span class="ws-label">Connecting…</span>
+        </div>
+      </div>
+      <div class="dash-header-right">
+        <div class="balance-pill">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 4c0-1.1.9-2 2-2h18a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V4zm14 0v20M1 10h22"/></svg>
+          <span id="balanceDisplay">—</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- TRADE TAB -->
+    <div class="tab-content active" id="tab-trade">
+      <div class="trade-grid">
+
+        <!-- CHART PANEL -->
+        <div class="chart-panel panel">
+          <div class="panel-header">
+            <div class="symbol-selector">
+              <select id="symbolSelect" class="symbol-select">
+                <option value="R_100">Volatility 100 Index</option>
+                <option value="R_75">Volatility 75 Index</option>
+                <option value="R_50">Volatility 50 Index</option>
+                <option value="R_25">Volatility 25 Index</option>
+                <option value="R_10">Volatility 10 Index</option>
+                <option value="CRASH500">Crash 500 Index</option>
+                <option value="BOOM500">Boom 500 Index</option>
+                <option value="CRASH1000">Crash 1000 Index</option>
+                <option value="BOOM1000">Boom 1000 Index</option>
+                <option value="stpRNG">Step Index</option>
+                <option value="frxEURUSD">EUR/USD</option>
+                <option value="frxGBPUSD">GBP/USD</option>
+                <option value="frxUSDJPY">USD/JPY</option>
+                <option value="frxAUDUSD">AUD/USD</option>
+                <option value="frxXAUUSD">Gold (XAU/USD)</option>
+              </select>
+              <div class="live-price" id="livePrice">
+                <span class="price-value" id="priceValue">—</span>
+                <span class="price-change" id="priceChange">—</span>
+              </div>
+            </div>
+            <div class="chart-controls">
+              <button class="chart-type-btn active" data-type="candle">Candle</button>
+              <button class="chart-type-btn" data-type="line">Line</button>
+              <div class="granularity-select">
+                <select id="granularitySelect">
+                  <option value="60">1m</option>
+                  <option value="300" selected>5m</option>
+                  <option value="900">15m</option>
+                  <option value="3600">1h</option>
+                  <option value="86400">1D</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="chart-area">
+            <canvas id="priceChart"></canvas>
+            <div class="chart-loading" id="chartLoading">
+              <div class="spinner"></div>
+              <span>Loading chart…</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ORDER PANEL -->
+        <div class="order-panel panel">
+          <div class="panel-header">
+            <h3>Place Contract</h3>
+          </div>
+          <div class="order-form">
+            <div class="form-group">
+              <label>Contract Type</label>
+              <div class="contract-type-tabs">
+                <button class="ct-tab active" data-ct="rise_fall">Rise / Fall</button>
+                <button class="ct-tab" data-ct="touch">Touch / No Touch</button>
+                <button class="ct-tab" data-ct="in_out">In / Out</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="stakeInput">Stake Amount (USD)</label>
+              <div class="input-wrap">
+                <span class="input-prefix">$</span>
+                <input type="number" id="stakeInput" value="10" min="0.35" max="50000" step="0.01" class="form-control"/>
+              </div>
+              <div class="stake-quick">
+                <button class="quick-btn" data-val="1">$1</button>
+                <button class="quick-btn" data-val="5">$5</button>
+                <button class="quick-btn" data-val="10">$10</button>
+                <button class="quick-btn" data-val="25">$25</button>
+                <button class="quick-btn" data-val="50">$50</button>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="durationInput">Duration</label>
+              <div class="duration-row">
+                <input type="number" id="durationInput" value="5" min="1" max="365" class="form-control duration-field"/>
+                <select id="durationUnit" class="form-control duration-unit">
+                  <option value="t">Ticks</option>
+                  <option value="s">Seconds</option>
+                  <option value="m" selected>Minutes</option>
+                  <option value="h">Hours</option>
+                  <option value="d">Days</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="payout-preview" id="payoutPreview">
+              <div class="payout-row">
+                <span>Est. Payout</span>
+                <span id="payoutAmt">—</span>
+              </div>
+              <div class="payout-row">
+                <span>Profit if win</span>
+                <span id="profitAmt" class="profit-green">—</span>
+              </div>
+            </div>
+
+            <div class="order-btns">
+              <button class="btn-trade btn-rise" id="riseBtn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+                Rise
+              </button>
+              <button class="btn-trade btn-fall" id="fallBtn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                Fall
+              </button>
+            </div>
+
+            <div class="trade-result" id="tradeResult"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- OPEN CONTRACTS -->
+      <div class="panel open-contracts-panel">
+        <div class="panel-header">
+          <h3>Open Contracts</h3>
+          <span class="badge" id="openContractsBadge">0</span>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="openContractsTable">
+            <thead>
+              <tr>
+                <th>Contract ID</th>
+                <th>Symbol</th>
+                <th>Type</th>
+                <th>Stake</th>
+                <th>Payout</th>
+                <th>Current P&amp;L</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="openContractsTbody">
+              <tr class="empty-row">
+                <td colspan="7">No open contracts. Place a trade above.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PORTFOLIO TAB -->
+    <div class="tab-content" id="tab-portfolio">
+      <div class="portfolio-cards">
+        <div class="kpi-card">
+          <div class="kpi-icon kpi--purple">💼</div>
+          <div class="kpi-data">
+            <div class="kpi-label">Account Balance</div>
+            <div class="kpi-value" id="portfolioBalance">—</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon kpi--teal">📊</div>
+          <div class="kpi-data">
+            <div class="kpi-label">Total Trades</div>
+            <div class="kpi-value" id="totalTrades">—</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon kpi--green">✅</div>
+          <div class="kpi-data">
+            <div class="kpi-label">Won</div>
+            <div class="kpi-value" id="tradesWon">—</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon kpi--red">❌</div>
+          <div class="kpi-data">
+            <div class="kpi-label">Lost</div>
+            <div class="kpi-value" id="tradesLost">—</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon kpi--blue">🎯</div>
+          <div class="kpi-data">
+            <div class="kpi-label">Win Rate</div>
+            <div class="kpi-value" id="winRate">—</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon kpi--orange">💰</div>
+          <div class="kpi-data">
+            <div class="kpi-label">Net P&L (Session)</div>
+            <div class="kpi-value" id="netPnl">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h3>Account Information</h3></div>
+        <div class="account-details-grid" id="accountDetailsGrid">
+          <div class="detail-row"><span class="detail-label">Login ID</span><span class="detail-val" id="detailLoginId">—</span></div>
+          <div class="detail-row"><span class="detail-label">Currency</span><span class="detail-val" id="detailCurrency">—</span></div>
+          <div class="detail-row"><span class="detail-label">Account Type</span><span class="detail-val" id="detailType">—</span></div>
+          <div class="detail-row"><span class="detail-label">Country</span><span class="detail-val" id="detailCountry">—</span></div>
+          <div class="detail-row"><span class="detail-label">Email</span><span class="detail-val" id="detailEmail">—</span></div>
+          <div class="detail-row"><span class="detail-label">Status</span><span class="detail-val status-active">Active ✓</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTORY TAB -->
+    <div class="tab-content" id="tab-history">
+      <div class="panel">
+        <div class="panel-header">
+          <h3>Contract History</h3>
+          <button class="btn btn-sm btn-outline" id="refreshHistory">Refresh</button>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" id="historyTable">
+            <thead>
+              <tr>
+                <th>Date &amp; Time</th>
+                <th>Symbol</th>
+                <th>Contract</th>
+                <th>Stake</th>
+                <th>Payout</th>
+                <th>P&amp;L</th>
+                <th>Result</th>
+              </tr>
+            </thead>
+            <tbody id="historyTbody">
+              <tr class="empty-row">
+                <td colspan="7">No contract history yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- MARKETS TAB -->
+    <div class="tab-content" id="tab-markets">
+      <div class="panel">
+        <div class="panel-header">
+          <h3>Market Watchlist</h3>
+          <div class="search-wrap">
+            <input type="text" id="marketSearch" placeholder="Search symbols…" class="search-input"/>
+          </div>
+        </div>
+        <div class="markets-watchlist" id="marketsWatchlist">
+          <div class="watchlist-loading">
+            <div class="spinner"></div> Loading markets…
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="js/deriv-ws.js"></script>
+<script src="js/chart.js"></script>
+<script src="js/dashboard.js"></script>
+</body>
+</html>
