@@ -111,58 +111,39 @@ navLinks.querySelectorAll('a').forEach(a => {
   const strip = document.getElementById('tickerStrip');
   if (!strip) return;
 
-  const symbols = [
-    { sym: 'R_100',      name: 'Vol 100',   price: null },
-    { sym: 'R_75',       name: 'Vol 75',    price: null },
-    { sym: 'frxEURUSD',  name: 'EUR/USD',   price: null },
-    { sym: 'frxGBPUSD',  name: 'GBP/USD',   price: null },
-    { sym: 'frxXAUUSD',  name: 'XAU/USD',   price: null },
-    { sym: 'frxUSDJPY',  name: 'USD/JPY',   price: null },
-    { sym: 'CRASH500',   name: 'Crash 500', price: null },
-    { sym: 'BOOM500',    name: 'Boom 500',  price: null },
-  ];
+  const SYMS  = ['R_100','R_75','frxEURUSD','frxGBPUSD','frxXAUUSD','frxUSDJPY','CRASH500','BOOM500','R_50','frxAUDUSD'];
+  const NAMES = { R_100:'Vol 100', R_75:'Vol 75', frxEURUSD:'EUR/USD', frxGBPUSD:'GBP/USD', frxXAUUSD:'XAU/USD', frxUSDJPY:'USD/JPY', CRASH500:'Crash 500', BOOM500:'Boom 500', R_50:'Vol 50', frxAUDUSD:'AUD/USD' };
+  const prices = {};
 
-  const items = {};
-
-  function renderStrip() {
-    const html = [...symbols, ...symbols].map(s => {
-      const d = items[s.sym];
-      const priceStr = d ? d.price.toFixed(d.price > 100 ? 2 : 5) : '—';
-      const cls      = d ? (d.dir >= 0 ? 't-up' : 't-down') : '';
-      const arrow    = d ? (d.dir >= 0 ? '▲' : '▼') : '';
-      return `<span class="ticker-item">
-        <span class="t-sym">${s.name}</span>
-        <span class="t-price ${cls}">${arrow} ${priceStr}</span>
-      </span>`;
+  function render() {
+    const all = [...SYMS, ...SYMS];
+    strip.innerHTML = all.map(s => {
+      const d    = prices[s];
+      const pStr = d ? (d.p > 100 ? d.p.toFixed(2) : d.p.toFixed(5)) : '—';
+      const cls  = !d ? '' : d.dir > 0 ? 't-up' : d.dir < 0 ? 't-down' : '';
+      const arr  = !d ? '' : d.dir > 0 ? '▲' : d.dir < 0 ? '▼' : '';
+      return `<span class="ticker-item"><span class="t-sym">${NAMES[s]||s}</span><span class="t-price ${cls}">${arr} ${pStr}</span></span>`;
     }).join('');
-    strip.innerHTML = html;
   }
 
-  renderStrip();
+  render();
 
-  // Connect to Deriv WS for ticker data
   try {
     const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
-    ws.onopen = () => {
-      symbols.forEach(s => {
-        ws.send(JSON.stringify({ ticks: s.sym, subscribe: 1 }));
-      });
-    };
-    ws.onmessage = (e) => {
+    ws.onopen = () => SYMS.forEach((s, i) => setTimeout(() => ws.send(JSON.stringify({ ticks: s, subscribe: 1, req_id: i + 1 })), i * 60));
+    ws.onmessage = e => {
       try {
-        const data = JSON.parse(e.data);
-        if (data.tick) {
-          const sym = data.tick.symbol;
-          const price = parseFloat(data.tick.quote);
-          const prev = items[sym] ? items[sym].price : price;
-          items[sym] = { price, dir: price - prev };
-          renderStrip();
+        const d = JSON.parse(e.data);
+        if (d.tick) {
+          const sym = d.tick.symbol;
+          const p   = parseFloat(d.tick.quote);
+          const dir = prices[sym] ? p - prices[sym].p : 0;
+          prices[sym] = { p, dir };
+          render();
         }
       } catch (_) {}
     };
-  } catch (_) {
-    // WS unavailable — static display
-  }
+  } catch (_) {}
 })();
 
 // ---- SCROLL REVEAL ----

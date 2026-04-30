@@ -406,18 +406,23 @@
 /* ---- MARKETS WATCHLIST ---- */
 .markets-watchlist { padding: .5rem 0; }
 .watchlist-loading { padding: 2rem; text-align: center; color: var(--text-muted); font-size: .85rem; display: flex; align-items: center; justify-content: center; gap: .75rem; }
+.watchlist-empty { padding: 2rem; text-align: center; color: var(--text-dim); font-size: .85rem; }
+.wl-cat-label { padding: .45rem 1.25rem .25rem; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--text-dim); }
 .watchlist-item {
   display: flex; align-items: center; justify-content: space-between;
-  padding: .65rem 1.25rem;
+  padding: .6rem 1.25rem;
   border-bottom: 1px solid var(--border);
   cursor: pointer; transition: background .15s;
 }
 .watchlist-item:hover { background: var(--bg-input); }
+.watchlist-item.wl-active { background: rgba(108,99,255,.08); border-left: 2px solid var(--purple); }
 .watchlist-item:last-child { border-bottom: none; }
-.wi-symbol { font-weight: 600; font-size: .88rem; color: var(--text); }
-.wi-name { font-size: .75rem; color: var(--text-muted); margin-top: .05rem; }
-.wi-price { font-family: var(--font-display); font-weight: 700; font-size: .9rem; text-align: right; }
-.wi-change { font-size: .75rem; font-weight: 600; text-align: right; }
+.wl-left {}
+.wl-right { text-align: right; }
+.wi-symbol { font-weight: 600; font-size: .85rem; color: var(--text); }
+.wi-name { font-size: .73rem; color: var(--text-muted); margin-top: .05rem; }
+.wi-price { font-family: var(--font-display); font-weight: 700; font-size: .88rem; }
+.wi-change { font-size: .72rem; font-weight: 600; margin-top: .05rem; }
 .wi-up { color: var(--green); }
 .wi-down { color: var(--red); }
 .search-wrap { flex: 1; max-width: 240px; }
@@ -454,16 +459,18 @@
   border-radius: var(--r-md);
   padding: .75rem 1.1rem;
   font-size: .84rem; font-weight: 500;
-  max-width: 320px;
+  max-width: 340px;
   box-shadow: var(--shadow-md);
   pointer-events: all;
-  animation: toastIn .25s ease-out;
+  opacity: 0;
+  transform: translateX(24px);
+  transition: opacity .25s ease, transform .25s ease;
   display: flex; align-items: center; gap: .6rem;
 }
+.toast.visible { opacity: 1; transform: none; }
 .toast.toast-success { border-left: 3px solid var(--green); }
 .toast.toast-error   { border-left: 3px solid var(--red); }
 .toast.toast-info    { border-left: 3px solid var(--purple); }
-@keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
 
 /* ---- RESPONSIVE DASHBOARD ---- */
 @media (max-width: 1024px) {
