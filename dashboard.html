@@ -7,6 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="assets/logo.svg"/>
   <link rel="stylesheet" href="css/main.css"/>
   <link rel="stylesheet" href="css/dashboard.css"/>
+  <link rel="stylesheet" href="css/bot.css"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 </head>
 <body class="dashboard-body">
@@ -104,6 +105,11 @@
       <a href="#" class="sidebar-link" data-tab="markets">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
         <span>Markets</span>
+      </a>
+      <a href="#" class="sidebar-link sidebar-link--bot" data-tab="bot">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="12" y1="15" x2="12" y2="17"/></svg>
+        <span>Auto Bot</span>
+        <span class="sidebar-bot-badge">AI</span>
       </a>
     </nav>
 
@@ -404,6 +410,206 @@
       </div>
     </div>
 
+    <!-- BOT TAB -->
+    <div class="tab-content" id="tab-bot">
+
+      <!-- TOP ROW: config + live stats -->
+      <div class="bot-top-row">
+
+        <!-- CONFIG CARD -->
+        <div class="panel bot-config-panel">
+          <div class="panel-header">
+            <h3>⚡ Bot Configuration</h3>
+            <div id="botStatusPill" class="bot-pill bot-pill--idle">○ Idle</div>
+          </div>
+          <div class="bot-config-body">
+
+            <div class="bot-form-row">
+              <div class="bot-form-group">
+                <label>Volatility Market</label>
+                <select id="botSymbol" class="form-control"></select>
+              </div>
+            </div>
+
+            <div class="bot-form-row">
+              <div class="bot-form-group">
+                <label>Default Stake (USD)</label>
+                <div class="input-wrap">
+                  <span class="input-prefix">$</span>
+                  <input type="number" id="botStake" value="1" min="0.35" step="0.01" class="form-control" style="padding-left:1.8rem"/>
+                </div>
+              </div>
+              <div class="bot-form-group">
+                <label>Max Martingale Steps</label>
+                <input type="number" id="botMaxMartingale" value="6" min="1" max="15" class="form-control"/>
+              </div>
+            </div>
+
+            <div class="bot-form-row">
+              <div class="bot-form-group">
+                <label>Take Profit (USD)</label>
+                <div class="input-wrap">
+                  <span class="input-prefix">$</span>
+                  <input type="number" id="botTakeProfit" value="20" min="0.01" step="0.01" class="form-control" style="padding-left:1.8rem"/>
+                </div>
+              </div>
+              <div class="bot-form-group">
+                <label>Stop Loss (USD)</label>
+                <div class="input-wrap">
+                  <span class="input-prefix">$</span>
+                  <input type="number" id="botStopLoss" value="10" min="0.01" step="0.01" class="form-control" style="padding-left:1.8rem"/>
+                </div>
+              </div>
+            </div>
+
+            <!-- TP/SL Progress Bars -->
+            <div class="bot-progress-section">
+              <div class="bot-prog-row">
+                <span class="bot-prog-label">TP Progress</span>
+                <span class="bot-prog-pct" id="botTpPct">0%</span>
+              </div>
+              <div class="bot-prog-track">
+                <div class="bot-prog-fill bot-prog-tp" id="botTpBar" style="width:0%"></div>
+              </div>
+              <div class="bot-prog-row" style="margin-top:.6rem">
+                <span class="bot-prog-label">SL Exposure</span>
+                <span class="bot-prog-pct bot-pct-sl" id="botSlPct">0%</span>
+              </div>
+              <div class="bot-prog-track">
+                <div class="bot-prog-fill bot-prog-sl" id="botSlBar" style="width:0%"></div>
+              </div>
+            </div>
+
+            <!-- Strategy info -->
+            <div class="bot-strategy-card">
+              <div class="bot-strat-title">📋 Strategy Rules</div>
+              <ul class="bot-strat-list">
+                <li>Starts trading <span class="bot-span-even">EVEN</span> digits at default stake</li>
+                <li>✅ <b>WIN</b> → Keep same type, reset stake to default</li>
+                <li>❌ <b>LOSS</b> → Switch type + double stake (martingale)</li>
+                <li>Trades every single tick on the selected Volatility Index</li>
+                <li>Auto-stops at Take Profit or Stop Loss</li>
+              </ul>
+            </div>
+
+            <div class="bot-action-row">
+              <button class="btn btn-primary" id="botStartBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Start Bot
+              </button>
+              <button class="btn btn-danger" id="botStopBtn" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                Stop Bot
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- LIVE STATS CARD -->
+        <div class="bot-stats-col">
+
+          <!-- Mode + next trade -->
+          <div class="panel bot-live-card">
+            <div class="panel-header"><h3>Live Status</h3></div>
+            <div class="bot-live-body">
+              <div class="bot-mode-row">
+                <span class="bot-mode-label">Current Mode</span>
+                <span id="botModeDisplay" class="bot-mode-badge mode-even">⚡ EVEN</span>
+              </div>
+              <div class="bot-next-row" id="botNextInfo">—</div>
+            </div>
+          </div>
+
+          <!-- KPI Grid -->
+          <div class="bot-kpi-grid">
+            <div class="bot-kpi">
+              <div class="bot-kpi-label">P&L</div>
+              <div class="bot-kpi-val" id="botPnl">$0.00</div>
+            </div>
+            <div class="bot-kpi">
+              <div class="bot-kpi-label">Peak P&L</div>
+              <div class="bot-kpi-val" id="botHighwater">$0.00</div>
+            </div>
+            <div class="bot-kpi">
+              <div class="bot-kpi-label">Trades</div>
+              <div class="bot-kpi-val" id="botTotalTrades">0</div>
+            </div>
+            <div class="bot-kpi">
+              <div class="bot-kpi-label">Wins</div>
+              <div class="bot-kpi-val" style="color:var(--green)" id="botWins">0</div>
+            </div>
+            <div class="bot-kpi">
+              <div class="bot-kpi-label">Losses</div>
+              <div class="bot-kpi-val" style="color:var(--red)" id="botLosses">0</div>
+            </div>
+            <div class="bot-kpi">
+              <div class="bot-kpi-label">Consec. Losses</div>
+              <div class="bot-kpi-val" id="botConsLosses">0</div>
+            </div>
+            <div class="bot-kpi">
+              <div class="bot-kpi-label">Win Rate</div>
+              <div class="bot-kpi-val" id="botWinRate">—</div>
+            </div>
+            <div class="bot-kpi">
+              <div class="bot-kpi-label">Current Stake</div>
+              <div class="bot-kpi-val" id="botCurrentStake">—</div>
+            </div>
+            <div class="bot-kpi">
+              <div class="bot-kpi-label">Elapsed</div>
+              <div class="bot-kpi-val" id="botElapsed">—</div>
+            </div>
+          </div>
+
+          <!-- Win-rate bar -->
+          <div class="panel bot-wr-panel">
+            <div class="bot-wr-header">
+              <span>Win Rate</span>
+              <span id="botWinRate2" class="bot-wr-pct"></span>
+            </div>
+            <div class="bot-wr-track">
+              <div class="bot-wr-fill" id="botWrBar" style="width:0%"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- LOG -->
+      <div class="panel">
+        <div class="panel-header">
+          <h3>Activity Log</h3>
+          <span class="badge" id="botTradeCount">0 trades</span>
+        </div>
+        <div class="bot-log-container" id="botLogContainer"></div>
+      </div>
+
+      <!-- TRADES TABLE -->
+      <div class="panel">
+        <div class="panel-header"><h3>Trade History</h3></div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Stake</th>
+                <th>Digit</th>
+                <th>Result</th>
+                <th>P&L</th>
+                <th>Cumulative</th>
+              </tr>
+            </thead>
+            <tbody id="botTradeTbody">
+              <tr class="empty-row"><td colspan="8">Bot not started yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /tab-bot -->
+
   </main>
 </div>
 
@@ -413,5 +619,6 @@
 <script src="js/deriv-ws.js"></script>
 <script src="js/chart.js"></script>
 <script src="js/dashboard.js"></script>
+<script src="js/bot.js"></script>
 </body>
 </html>

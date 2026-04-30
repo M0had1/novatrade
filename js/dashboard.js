@@ -853,6 +853,13 @@ $$('.sidebar-link[data-tab]').forEach(link => {
   });
 });
 
+// Init bot after DOM ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => { if (window.TradingBot) TradingBot.init(); });
+} else {
+  setTimeout(() => { if (window.TradingBot) TradingBot.init(); }, 0);
+}
+
 // Mobile sidebar toggle
 $('sidebarToggle').addEventListener('click', () => $('sidebar').classList.toggle('open'));
 
