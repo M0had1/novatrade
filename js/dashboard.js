@@ -78,27 +78,28 @@ toggleVis.addEventListener('click', () => {
 connectBtn.addEventListener('click', async () => {
   const t = tokenInput.value.trim();
   clearAuthError();
+  console.log('[NovaTrade] Connect clicked, token length:', t.length);
 
   if (!t) { showAuthError('Please enter your Deriv API token.'); return; }
 
-  // Lock UI
-  connectBtn.disabled = true;
+  connectBtn.disabled    = true;
   connectBtn.textContent = 'Connecting…';
 
   try {
-    // Step 1 — open WebSocket
+    console.log('[NovaTrade] Step 1: calling DerivWS.connect()…');
     await DerivWS.connect();
+    console.log('[NovaTrade] Step 2: WebSocket open — calling authorise()…');
 
-    // Step 2 — authorise
     connectBtn.textContent = 'Authenticating…';
     const account = await DerivWS.authorise(t);
 
-    // Step 3 — success
+    console.log('[NovaTrade] Step 3: Authorised —', account.loginid);
     State.token   = t;
     State.account = account;
     enterDashboard(false);
 
   } catch (err) {
+    console.error('[NovaTrade] Auth failed:', err);
     showAuthError(err.message || 'Authentication failed. Please check your token and try again.');
   } finally {
     connectBtn.disabled = false;
@@ -106,34 +107,29 @@ connectBtn.addEventListener('click', async () => {
   }
 });
 
-// Allow Enter key in token input
-tokenInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') connectBtn.click();
-});
+// Allow Enter key
+tokenInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') connectBtn.click(); });
 
 // ---- DEMO BUTTON ----
 demoBtn.addEventListener('click', async () => {
   clearAuthError();
+  console.log('[NovaTrade] Demo clicked');
   demoBtn.disabled    = true;
-  demoBtn.textContent = 'Loading demo…';
+  demoBtn.textContent = 'Connecting…';
 
   try {
     await DerivWS.connect();
-    // Demo mode: real ticks, simulated trading
     State.token   = '__demo__';
     State.account = {
-      loginid:      'DEMO001',
-      fullname:     'Demo Trader',
-      email:        'demo@novatrade.io',
-      country:      'KE',
-      currency:     'USD',
-      balance:      10000,
-      account_type: 'demo',
-      is_virtual:   1,
+      loginid: 'DEMO001', fullname: 'Demo Trader',
+      email: 'demo@novatrade.io', country: 'KE',
+      currency: 'USD', balance: 10000,
+      account_type: 'demo', is_virtual: 1,
     };
     enterDashboard(true);
   } catch (err) {
-    showAuthError('Could not connect to Deriv servers. Check your internet connection.');
+    console.error('[NovaTrade] Demo connect failed:', err);
+    showAuthError('Could not connect to Deriv. Check your internet connection.');
   } finally {
     demoBtn.disabled    = false;
     demoBtn.textContent = 'Use Demo Account';
@@ -273,29 +269,41 @@ function initChartAndTicks() {
 function loadChart() {
   chartLoad.classList.remove('hidden');
 
-  // Forget previous candle subscription
+  // Forget previous subscriptions
   if (State.candleSub) {
     DerivWS.send({ forget: State.candleSub });
     State.candleSub = null;
   }
+  if (State.tickSubs[State.symbol]) {
+    DerivWS.send({ forget: State.tickSubs[State.symbol] });
+    delete State.tickSubs[State.symbol];
+  }
 
-  // Subscribe to ticks for this symbol
-  DerivWS.send({ ticks: State.symbol, subscribe: 1 }, (data) => {
-    if (data.subscription) State.tickSubs[State.symbol] = data.subscription.id;
-  });
-
-  // Load candle history + subscribe
+  // Load candle history + subscribe to ohlc stream
   DerivWS.getCandles(State.symbol, State.granularity, 200, (data) => {
     chartLoad.classList.add('hidden');
     if (data.error) {
-      toast('Chart error: ' + data.error.message, 'error');
+      // Candles not available for this symbol, fall back to ticks
+      console.warn('[NovaTrade] Candles error:', data.error.message, '- falling back to ticks');
+      NTChart.setType('line');
+      // Subscribe ticks for price + chart
+      DerivWS.send({ ticks: State.symbol, subscribe: 1 }, (td) => {
+        if (td.subscription) State.tickSubs[State.symbol] = td.subscription.id;
+      });
       return;
     }
-    if (data.candles) {
+    if (data.candles && data.candles.length) {
       NTChart.setCandles(data.candles);
       NTChart.setType(State.chartType);
     }
     if (data.subscription) State.candleSub = data.subscription.id;
+  });
+
+  // Always subscribe to ticks for live price display
+  DerivWS.send({ ticks: State.symbol, subscribe: 1 }, (td) => {
+    if (td.subscription) State.tickSubs[State.symbol] = td.subscription.id;
+    // Show first price immediately
+    if (td.tick) handleTick(td.tick);
   });
 }
 

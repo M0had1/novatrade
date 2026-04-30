@@ -1,172 +1,193 @@
 /* ============================================================
    NovaTrade — Deriv WebSocket Client
-   Official Deriv App ID: 1089 (public third-party)
+   App ID: 1089  |  wss://ws.binaryws.com/websockets/v3
    ============================================================ */
-
 'use strict';
 
 const DerivWS = (() => {
-  const APP_ID  = 1089;
-  const WS_URL  = `wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`;
+  const APP_ID = 1089;
+  const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`;
   const PING_MS = 25000;
 
-  let ws           = null;
-  let pingTimer    = null;
-  let reconnTimer  = null;
-  let reconnDelay  = 2000;
-  let reconnMax    = 8;
-  let reconnCount  = 0;
-  let autoReconn   = false;   // only reconnect after a real session, not during auth
+  let ws          = null;
+  let pingTimer   = null;
+  let reqId       = 1;
+  let callbacks   = {};       // req_id  -> one-shot callback
+  let subscribers = {};       // msg_type -> [fn, ...]
+  let onOpenQueue = [];       // fns waiting for open
+  let autoReauth  = null;     // stored token for reconnects
 
-  let listeners    = {};      // persistent event listeners (balance, tick, etc.)
-  let reqCallbacks = {};      // one-shot req_id callbacks
-  let reqId        = 1;
-
-  // ---- Status bar refs ----
-  let $dot, $label;
-  function setStatus(state, text) {
-    if (!$dot)   $dot   = document.querySelector('#wsStatus .ws-dot');
-    if (!$label) $label = document.querySelector('#wsStatus .ws-label');
-    if ($dot)   $dot.className   = `ws-dot ${state}`;
-    if ($label) $label.textContent = text;
+  // ---- UI status helpers ----
+  function setStatus(cls, text) {
+    const dot   = document.querySelector('#wsStatus .ws-dot');
+    const label = document.querySelector('#wsStatus .ws-label');
+    if (dot)   dot.className     = `ws-dot ${cls}`;
+    if (label) label.textContent = text;
   }
 
-  // ---- Core connect — returns a Promise that resolves on open ----
-  function connect() {
-    return new Promise((resolve, reject) => {
-      // If already open, resolve immediately
-      if (ws && ws.readyState === WebSocket.OPEN) { resolve(); return; }
-
-      // If connecting, wait for it
-      if (ws && ws.readyState === WebSocket.CONNECTING) {
-        const done = () => { resolve(); };
-        ws.addEventListener('open', done, { once: true });
-        ws.addEventListener('error', () => reject(new Error('Connection failed')), { once: true });
-        return;
-      }
-
-      // Close any stale socket
-      if (ws) { ws.onclose = null; ws.onerror = null; ws.onmessage = null; ws.close(); }
-
-      setStatus('connecting', 'Connecting…');
-      ws = new WebSocket(WS_URL);
-
-      ws.onopen = () => {
-        reconnCount = 0;
-        reconnDelay = 2000;
-        startPing();
-        setStatus('connecting', 'Authenticating…');
-        emit('ws_open');
-        resolve();
-      };
-
-      ws.onmessage = handleMessage;
-
-      ws.onclose = (e) => {
-        stopPing();
-        setStatus('disconnected', 'Disconnected');
-        emit('ws_close', e);
-        if (autoReconn && reconnCount < reconnMax) {
-          reconnTimer = setTimeout(() => {
-            reconnCount++;
-            reconnDelay = Math.min(reconnDelay * 1.5, 30000);
-            connect();
-          }, reconnDelay);
-        }
-      };
-
-      ws.onerror = () => {
-        setStatus('disconnected', 'Connection error');
-        ws.close();
-        reject(new Error('WebSocket error'));
-      };
-    });
-  }
-
-  function handleMessage(e) {
-    let data;
-    try { data = JSON.parse(e.data); } catch (_) { return; }
-
-    // One-shot request callbacks
-    if (data.req_id && reqCallbacks[data.req_id]) {
-      const cb = reqCallbacks[data.req_id];
-      delete reqCallbacks[data.req_id];
-      cb(data);
-      return; // don't double-emit for req/response pairs
+  // ---- Internal: create a fresh WebSocket ----
+  function _createSocket() {
+    if (ws) {
+      ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
+      try { ws.close(); } catch (_) {}
     }
+    ws = new WebSocket(WS_URL);
+    setStatus('connecting', 'Connecting…');
 
-    // Persistent subscriptions (tick, balance, proposal_open_contract, etc.)
-    if (data.msg_type) emit(data.msg_type, data);
+    ws.onopen = () => {
+      console.log('[NovaTrade] WebSocket open');
+      setStatus('connecting', 'Authenticating…');
+      startPing();
+      // Flush any queued open callbacks
+      const q = onOpenQueue.splice(0);
+      q.forEach(fn => fn());
+    };
+
+    ws.onmessage = (e) => {
+      let data;
+      try { data = JSON.parse(e.data); } catch (_) { return; }
+      _dispatch(data);
+    };
+
+    ws.onclose = (code) => {
+      console.log('[NovaTrade] WebSocket closed, code:', code);
+      stopPing();
+      setStatus('disconnected', 'Disconnected');
+      callbacks = {};
+      onOpenQueue = [];
+      // Auto-reconnect if we had a live session
+      if (autoReauth) {
+        setTimeout(() => {
+          console.log('[NovaTrade] Reconnecting…');
+          _createSocket();
+        }, 3000);
+      }
+    };
+
+    ws.onerror = (e) => {
+      console.warn('[NovaTrade] WebSocket error', e);
+      setStatus('disconnected', 'Error');
+      try { ws.close(); } catch (_) {}
+    };
   }
 
-  function disconnect() {
-    autoReconn = false;
-    reconnMax  = 0;
-    clearTimeout(reconnTimer);
-    stopPing();
-    if (ws) { ws.onclose = null; ws.close(); ws = null; }
-    setStatus('disconnected', 'Disconnected');
+  function _dispatch(data) {
+    // One-shot request callbacks
+    if (data.req_id && callbacks[data.req_id]) {
+      const cb = callbacks[data.req_id];
+      delete callbacks[data.req_id];
+      cb(data);
+      // Also emit for persistent subscribers (e.g. balance subscribe)
+    }
+    // Persistent type subscribers
+    const type = data.msg_type;
+    if (type && subscribers[type]) {
+      subscribers[type].forEach(fn => { try { fn(data); } catch(err) { console.error(err); } });
+    }
   }
 
-  function send(payload, callback) {
+  // ---- send ----
+  function send(payload, cb) {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.warn('[DerivWS] send() called while not connected');
-      if (callback) callback({ error: { message: 'Not connected' } });
-      return null;
+      console.warn('[NovaTrade] send() — not connected, payload:', payload);
+      if (cb) cb({ error: { message: 'Not connected to server.' } });
+      return;
     }
     const id = reqId++;
     payload.req_id = id;
-    if (callback) reqCallbacks[id] = callback;
+    if (cb) callbacks[id] = cb;
     ws.send(JSON.stringify(payload));
     return id;
   }
 
-  function startPing() {
-    stopPing();
-    pingTimer = setInterval(() => { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ ping: 1 })); }, PING_MS);
-  }
-  function stopPing() { clearInterval(pingTimer); pingTimer = null; }
-
-  // ---- Authorise — returns Promise<account> ----
-  function authorise(apiToken) {
+  // ---- connect — returns Promise ----
+  function connect() {
     return new Promise((resolve, reject) => {
-      send({ authorize: apiToken }, (data) => {
+      // Already fully open
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        console.log('[NovaTrade] connect() — already open');
+        resolve();
+        return;
+      }
+      // Queue until open
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(new Error('Connection timed out. Please check your internet connection.'));
+      }, 10000);
+
+      onOpenQueue.push(() => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve();
+      });
+
+      // Only create socket if not already in progress
+      if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+        _createSocket();
+      }
+      // If CONNECTING, the open event will flush the queue — just wait
+    });
+  }
+
+  // ---- authorise — returns Promise ----
+  function authorise(token) {
+    return new Promise((resolve, reject) => {
+      send({ authorize: token }, (data) => {
         if (data.error) {
+          console.warn('[NovaTrade] Auth error:', data.error.message);
           setStatus('disconnected', 'Auth failed');
-          reject(data.error);
+          reject(new Error(data.error.message));
           return;
         }
-        autoReconn = true;   // enable reconnect only after successful auth
+        console.log('[NovaTrade] Authorised:', data.authorize.loginid);
+        autoReauth = token;
         setStatus('connected', 'Live ●');
         resolve(data.authorize);
       });
     });
   }
 
-  // ---- Event bus ----
-  function on(event, fn) {
-    if (!listeners[event]) listeners[event] = [];
-    // Prevent duplicate listeners
-    if (!listeners[event].includes(fn)) listeners[event].push(fn);
+  // ---- disconnect ----
+  function disconnect() {
+    autoReauth = null;
+    stopPing();
+    onOpenQueue = [];
+    callbacks = {};
+    if (ws) {
+      ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
+      try { ws.close(); } catch (_) {}
+      ws = null;
+    }
+    setStatus('disconnected', 'Disconnected');
   }
-  function off(event, fn) {
-    if (!listeners[event]) return;
-    listeners[event] = listeners[event].filter(f => f !== fn);
+
+  function startPing() {
+    stopPing();
+    pingTimer = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ ping: 1 }));
+      }
+    }, PING_MS);
   }
-  function emit(event, data) {
-    (listeners[event] || []).forEach(fn => { try { fn(data); } catch(e) { console.error('[DerivWS emit]', e); } });
+  function stopPing() { clearInterval(pingTimer); }
+
+  // ---- event subscription ----
+  function on(type, fn) {
+    if (!subscribers[type]) subscribers[type] = [];
+    if (!subscribers[type].includes(fn)) subscribers[type].push(fn);
+  }
+  function off(type, fn) {
+    if (subscribers[type]) subscribers[type] = subscribers[type].filter(f => f !== fn);
   }
 
   // ---- API helpers ----
-  function getBalance(cb)              { send({ balance: 1, subscribe: 1 }, cb); }
-  function getAccountStatement(cb)     { send({ profit_table: 1, description: 1, limit: 100, sort: 'DESC' }, cb); }
-  function getOpenContracts(cb)        { send({ portfolio: 1 }, cb); }
-  function subscribeContract(id, cb)   { send({ proposal_open_contract: 1, contract_id: id, subscribe: 1 }, cb); }
-
-  function getTicks(symbol, cb) {
-    send({ ticks: symbol, subscribe: 1 }, cb);
-    on('tick', (d) => { if (d.tick && d.tick.symbol === symbol && cb) cb(d); });
-  }
+  function getBalance(cb)          { send({ balance: 1, subscribe: 1 }, cb); }
+  function getOpenContracts(cb)    { send({ portfolio: 1 }, cb); }
+  function getAccountStatement(cb) { send({ profit_table: 1, description: 1, limit: 100, sort: 'DESC' }, cb); }
+  function subscribeContract(id, cb) { send({ proposal_open_contract: 1, contract_id: id, subscribe: 1 }, cb); }
 
   function getCandles(symbol, granularity, count, cb) {
     send({
@@ -180,17 +201,16 @@ const DerivWS = (() => {
   }
 
   function buyContract(params, cb) {
-    const proposal = {
+    send({
       proposal:      1,
       amount:        params.amount,
-      basis:         params.basis || 'stake',
+      basis:         'stake',
       contract_type: params.contract_type,
       currency:      params.currency || 'USD',
       duration:      params.duration,
       duration_unit: params.duration_unit,
       symbol:        params.symbol,
-    };
-    send(proposal, (propData) => {
+    }, (propData) => {
       if (propData.error) { cb(null, propData.error); return; }
       send({ buy: propData.proposal.id, price: params.amount }, (buyData) => {
         if (buyData.error) { cb(null, buyData.error); return; }
@@ -199,14 +219,13 @@ const DerivWS = (() => {
     });
   }
 
-  function sellContract(contractId, cb) { send({ sell: contractId, price: 0 }, cb); }
+  function sellContract(id, cb) { send({ sell: id, price: 0 }, cb); }
 
   return {
     connect, disconnect, send, on, off,
-    authorise,
-    getBalance, getAccountStatement, getOpenContracts,
-    subscribeContract, getTicks, getCandles,
-    buyContract, sellContract,
+    authorise, getBalance, getOpenContracts,
+    getAccountStatement, subscribeContract,
+    getCandles, buyContract, sellContract,
   };
 })();
 
