@@ -898,12 +898,7 @@ $$('.sidebar-link[data-tab]').forEach(link => {
   });
 });
 
-// Init bot after DOM ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => { if (window.TradingBot) TradingBot.init(); });
-} else {
-  setTimeout(() => { if (window.TradingBot) TradingBot.init(); }, 0);
-}
+// TradingBot.init() is called self-contained inside bot.js
 
 // Mobile sidebar toggle
 $('sidebarToggle').addEventListener('click', () => $('sidebar').classList.toggle('open'));

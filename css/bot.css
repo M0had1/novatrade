@@ -2,6 +2,40 @@
    NovaTrade — Trading Bot Styles
    ============================================================ */
 
+/* ---- BOT SYMBOL SELECT ---- */
+.bot-symbol-select {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-size: .88rem;
+  font-family: var(--font-body);
+  padding: .65rem .85rem;
+  outline: none;
+  cursor: pointer;
+  appearance: auto;          /* keep native arrow so it's obviously a select */
+  -webkit-appearance: auto;
+  transition: border-color .2s;
+  /* Ensure the dropdown list itself is scrollable */
+  overflow-y: auto;
+}
+.bot-symbol-select:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px rgba(108,99,255,.18);
+}
+.bot-symbol-select option {
+  background: #1a1d2e;
+  color: var(--text);
+  font-size: .88rem;
+  padding: .4rem .85rem;
+}
+.bot-symbol-select option:hover,
+.bot-symbol-select option:checked {
+  background: rgba(108,99,255,.25);
+  color: var(--purple);
+}
+
 /* ---- SIDEBAR BOT LINK ---- */
 .sidebar-link--bot { margin-top: .5rem; border-top: 1px solid var(--border); padding-top: .85rem; }
 .sidebar-link--bot.active { background: rgba(0,201,167,.12); color: var(--teal); }

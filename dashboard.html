@@ -427,7 +427,18 @@
             <div class="bot-form-row">
               <div class="bot-form-group">
                 <label>Volatility Market</label>
-                <select id="botSymbol" class="form-control"></select>
+                <select id="botSymbol" class="form-control bot-symbol-select">
+                  <option value="R_10">Volatility 10 Index</option>
+                  <option value="R_25">Volatility 25 Index</option>
+                  <option value="R_50">Volatility 50 Index</option>
+                  <option value="R_75">Volatility 75 Index</option>
+                  <option value="R_100" selected>Volatility 100 Index</option>
+                  <option value="1HZ10V">Volatility 10 (1s) Index</option>
+                  <option value="1HZ25V">Volatility 25 (1s) Index</option>
+                  <option value="1HZ50V">Volatility 50 (1s) Index</option>
+                  <option value="1HZ75V">Volatility 75 (1s) Index</option>
+                  <option value="1HZ100V">Volatility 100 (1s) Index</option>
+                </select>
               </div>
             </div>
 
@@ -618,7 +629,7 @@
 
 <script src="js/deriv-ws.js"></script>
 <script src="js/chart.js"></script>
-<script src="js/dashboard.js"></script>
 <script src="js/bot.js"></script>
+<script src="js/dashboard.js"></script>
 </body>
 </html>

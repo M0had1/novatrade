@@ -509,20 +509,37 @@ const TradingBot = (() => {
   /* INIT                                                                 */
   /* ------------------------------------------------------------------ */
   function init() {
-    // Populate symbol selector
+    // Populate symbol selector (also pre-filled in HTML as fallback)
     const sel = $b('botSymbol');
-    if (sel) {
+    if (sel && sel.options.length === 0) {
+      // Only write innerHTML if the select is empty (HTML fallback already populated)
       sel.innerHTML = SYMBOLS.map(s =>
         `<option value="${s.sym}"${s.sym === 'R_100' ? ' selected' : ''}>${s.name}</option>`
       ).join('');
     }
 
+    // Attach button listeners (safe to call multiple times — addEventListener deduplicates)
     const startBtn = $b('botStartBtn');
     const stopBtn  = $b('botStopBtn');
-    if (startBtn) startBtn.addEventListener('click', start);
-    if (stopBtn)  stopBtn.addEventListener('click', () => stop('Manual stop by user'));
+    if (startBtn) {
+      const newStart = startBtn.cloneNode(true); // remove any duplicate listeners
+      startBtn.parentNode.replaceChild(newStart, startBtn);
+      newStart.addEventListener('click', start);
+    }
+    if (stopBtn) {
+      const newStop = stopBtn.cloneNode(true);
+      stopBtn.parentNode.replaceChild(newStop, stopBtn);
+      newStop.addEventListener('click', () => stop('Manual stop by user'));
+    }
 
     _ui();
+  }
+
+  // Auto-init as soon as DOM is ready — bot.js loads before dashboard.js
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
   }
 
   return { init, start, stop };
