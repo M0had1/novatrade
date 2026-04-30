@@ -16,6 +16,8 @@
   padding: 2.5rem 2rem;
   max-width: 480px; width: 100%;
   box-shadow: var(--shadow-lg);
+  position: relative;
+  overflow: hidden;
 }
 .auth-logo {
   display: flex; align-items: center; justify-content: center; gap: .6rem;
@@ -75,6 +77,15 @@
 }
 .auth-error.visible { display: block; }
 .auth-note { font-size: .76rem; color: var(--text-dim); text-align: center; margin-top: .5rem; }
+
+.auth-resume-msg {
+  position: absolute; inset: 0;
+  background: var(--bg-deep);
+  display: flex; align-items: center; justify-content: center; gap: .9rem;
+  border-radius: var(--r-xl);
+  font-size: .9rem; font-weight: 500; color: var(--text-muted);
+  z-index: 10;
+}
 
 /* ---- DASHBOARD LAYOUT ---- */
 .dashboard-body {

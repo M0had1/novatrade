@@ -76,8 +76,29 @@ function setBalanceEl(amount, currency) {
 /* ============================================================
    AUTH GATE
    ============================================================ */
-const authGate  = $('authGate');
-const dashWrap  = $('dashLayout');
+const authGate = $('authGate');
+const dashWrap = $('dashLayout');
+
+const STORAGE_KEY = 'nt_session_v1';
+
+function _saveSession(token, account) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ token, account, ts: Date.now() }));
+  } catch (_) {}
+}
+function _loadSession() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    // Expire after 30 days
+    if (!s.token || Date.now() - s.ts > 30 * 24 * 3600 * 1000) { localStorage.removeItem(STORAGE_KEY); return null; }
+    return s;
+  } catch (_) { return null; }
+}
+function _clearSession() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch (_) {}
+}
 
 function showAuthErr(msg) {
   const el = $('authError');
@@ -96,65 +117,53 @@ $('toggleVis').addEventListener('click', () => {
   inp.type  = inp.type === 'password' ? 'text' : 'password';
 });
 
-// Enter key on input
+// Enter key submits
 $('apiTokenInput').addEventListener('keydown', e => {
   if (e.key === 'Enter') $('connectBtn').click();
 });
 
-/* ---- CONNECT ---- */
+/* ---- SHARED AUTH FLOW ---- */
+async function _doAuth(token) {
+  // Socket is already pre-connecting on page load
+  // Just await it — if already open this resolves instantly
+  await DerivWS.connect();
+  const acct = await DerivWS.authorise(token);
+  ST.token   = token;
+  ST.account = acct;
+  _saveSession(token, acct);
+  _enterDashboard();
+}
+
+/* ---- CONNECT BUTTON ---- */
 $('connectBtn').addEventListener('click', async () => {
   const token = $('apiTokenInput').value.trim();
   clearAuthErr();
   if (!token) { showAuthErr('Please enter your Deriv API token.'); return; }
 
-  const btn = $('connectBtn');
-  btn.disabled    = true;
-  btn.textContent = 'Connecting…';
+  const btn        = $('connectBtn');
+  btn.disabled     = true;
+  btn.textContent  = 'Connecting…';
 
   try {
-    console.log('[NT] Connecting WebSocket…');
-    await DerivWS.connect();
-    console.log('[NT] Socket open. Authorising…');
-    btn.textContent = 'Authenticating…';
-
-    const acct = await DerivWS.authorise(token);
-    console.log('[NT] Authorised:', acct.loginid, acct.currency);
-
-    ST.token   = token;
-    ST.account = acct;
-    _enterDashboard();
-
+    await _doAuth(token);
   } catch (err) {
-    console.error('[NT] Auth error:', err);
-    showAuthErr(err.message || 'Authentication failed. Check your token and try again.');
+    showAuthErr(err.message || 'Authentication failed. Please check your token.');
   } finally {
-    btn.disabled    = false;
-    btn.textContent = 'Connect & Enter Platform';
-    btn.innerHTML   = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13 12H3"/></svg> Connect &amp; Enter Platform`;
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13 12H3"/></svg> Connect &amp; Enter Platform`;
   }
 });
 
-/* ---- DEMO ---- */
+/* ---- DEMO BUTTON ---- */
 $('demoBtn').addEventListener('click', async () => {
   clearAuthErr();
-  const btn     = $('demoBtn');
+  const btn       = $('demoBtn');
   btn.disabled    = true;
   btn.textContent = 'Connecting…';
-
   try {
     await DerivWS.connect();
-    // Authorise with Deriv's public virtual account token
-    // We use a real WS connection with no auth — ticks work, trading is simulated
     ST.token   = '__demo__';
-    ST.account = {
-      loginid:    'DEMO',
-      fullname:   'Demo Trader',
-      email:      '',
-      country:    '',
-      currency:   'USD',
-      balance:    10000,
-      is_virtual: 1,
-    };
+    ST.account = { loginid:'DEMO', fullname:'Demo Trader', email:'', country:'', currency:'USD', balance:10000, is_virtual:1 };
     _enterDashboard();
   } catch (err) {
     showAuthErr('Could not reach Deriv servers. Check your internet connection.');
@@ -166,22 +175,58 @@ $('demoBtn').addEventListener('click', async () => {
 
 /* ---- LOGOUT ---- */
 $('logoutBtn').addEventListener('click', () => {
+  _clearSession();
   DerivWS.disconnect();
   _teardownSubs();
-  dashWrap.style.display  = 'none';
-  authGate.style.display  = 'flex';
+  dashWrap.style.display   = 'none';
+  authGate.style.display   = 'flex';
   $('apiTokenInput').value = '';
   Object.assign(ST, {
     token: null, account: null, balance: 0,
     openContracts: {}, history: [],
-    stats: { total: 0, won: 0, lost: 0, pnl: 0 },
+    stats: { total:0, won:0, lost:0, pnl:0 },
     lastPrice: null, lastPricePrev: null,
     candleSubId: null, tickSubId: null,
     proposalSubId: null, proposalId: null,
   });
   clearAuthErr();
-  toast('Disconnected.', 'info');
+  toast('Logged out successfully.', 'info');
 });
+
+/* ---- AUTO-LOGIN on page load ---- */
+// 1. Start the WebSocket connection immediately in the background
+//    so by the time the user clicks Connect the socket is already open.
+DerivWS.connect().catch(() => {}); // silent fail — retry is built into DerivWS
+
+// 2. Check for a saved session and auto-login if found
+(async function _autoLogin() {
+  const saved = _loadSession();
+  if (!saved) return; // no saved session — show login screen normally
+
+  // Show a lightweight "resuming session" state on the auth gate
+  const gate = $('authGate');
+  const resumeMsg = document.createElement('div');
+  resumeMsg.className = 'auth-resume-msg';
+  resumeMsg.innerHTML = `<div class="spinner"></div><span>Resuming your session…</span>`;
+  if (gate) gate.appendChild(resumeMsg);
+
+  try {
+    await DerivWS.connect();              // resolves instantly if already open
+    const acct = await DerivWS.authorise(saved.token);
+    ST.token   = saved.token;
+    ST.account = acct;
+    _saveSession(saved.token, acct);      // refresh timestamp
+    if (resumeMsg) resumeMsg.remove();
+    _enterDashboard();
+  } catch (err) {
+    // Token expired or revoked — clear and show login screen
+    _clearSession();
+    if (resumeMsg) resumeMsg.remove();
+    if (err.message && err.message.toLowerCase().includes('token')) {
+      showAuthErr('Your saved session expired. Please log in again.');
+    }
+  }
+})();
 
 /* ============================================================
    ENTER DASHBOARD
